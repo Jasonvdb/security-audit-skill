@@ -1,5 +1,23 @@
 # security-audit
 
+> [!NOTE]
+> **This is a personal fork of [cloudflare/security-audit-skill](https://github.com/cloudflare/security-audit-skill). Cloudflare does not maintain or endorse it.**
+>
+> The fork adapts the skill for long, unattended full audits on harnesses with rolling usage limits, mainly Kimi Code. Upstream starts every agent in a wave at once, which can use up a 5-hour usage window in minutes. When the run stops, someone has to come back and type "continue".
+>
+> This fork adds [UNATTENDED.md](skills/security-audit/UNATTENDED.md) and a scratch-cleanup script, so the skill now:
+>
+> - runs at most five agents at a time, with the same coverage as upstream; runs just take longer
+> - resumes from the run files after a usage limit or session end, and schedules an hourly resume check when the harness supports it
+> - asks all its questions at setup, then runs without asking
+> - cleans up its scratch with simple commands that approval guards allow
+>
+> Upstream's audit workflow and evidence rules are unchanged. To install this fork instead of upstream:
+>
+> ```bash
+> npx skills add https://github.com/Jasonvdb/security-audit-skill --skill security-audit --global
+> ```
+
 A coding-agent skill that turns your agent into a security auditor. It orchestrates isolated agents through reconnaissance, coverage-led hunting, candidate validation, structured output, independent record verification, and target-neutral reporting.
 
 This is the skill that seeded Cloudflare's vulnerability discovery harness, described in [Build your own vulnerability harness](https://blog.cloudflare.com/build-your-own-vulnerability-harness). The harness grew into a multi-stage, fleet-wide system; this skill is the single-repo starting point it evolved from.
