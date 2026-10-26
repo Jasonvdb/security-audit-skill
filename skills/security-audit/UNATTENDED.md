@@ -33,13 +33,13 @@ A batch is a checkpoint. When a usage limit interrupts the run, at most one batc
 
 ## Interruptions
 
-An invocation is interrupted when it ends without a structured result because of a usage or quota limit, a rate limit, a harness timeout, a cancelled session, or a crash. An interruption is not a malformed result: do not discard it as one, do not count it against `budget`, and do not set the run incomplete because of it. Increment `interrupted_invocations` and the unit's `interruptions` bookkeeping field, and report the total in `REPORT.md`.
+An invocation is interrupted when it ends without a structured result because of a usage or quota limit, a rate limit, a harness timeout, a cancelled session, or a crash. An interruption is not a malformed result: do not discard it as one, do not count it against `budget`, and do not set the run incomplete because of it. Increment `interrupted_invocations` for every interruption, and report the total in `REPORT.md`. The unit's `interruptions` bookkeeping field counts only the interruptions that step 3 below counts.
 
 An interrupted agent's unit is still `in_progress` in the ledger. Recover it as follows:
 
 1. If the harness can resume that exact agent by its recorded handle, with its context, resume it: same `agent_id`, same scratch, same prompt.
 2. Otherwise, reset the unit to `planned` with a null owner and empty live evidence, keeping its current `wave`. Assign it to a fresh canonical `agent_id` (for example `<old-id>-r2`) in a new batch, and clean the abandoned agent's scratch once no process of it remains.
-3. When a unit has been interrupted twice in a row, do not dispatch it again in this run. Set it `deferred`, null owner, empty evidence, with the reason `interrupted_repeatedly: <what ended each attempt>`. A unit that keeps hitting a harness timeout is likely too large; the next run should split it.
+3. Usage, quota, and rate limits, cancellations, and session ends say nothing about the unit. Always recover a unit interrupted for those reasons, however often it happens, and do not count those interruptions in its `interruptions` field. Count only harness timeouts and crashes. When a unit has two counted interruptions in a row, do not dispatch it again in this run: set it `deferred`, null owner, empty evidence, with the reason `interrupted_repeatedly: <what ended each attempt>`. A unit that keeps hitting a harness timeout is likely too large; the next run should split it.
 
 A verifier or critic that is interrupted is re-run with a fresh agent that satisfies the same independence rules. Never reuse an interrupted verifier's partial output.
 
@@ -94,7 +94,9 @@ command per deletion, of exactly this form:
 
 Never add -f, a trailing slash, globs, variables, ~, command substitution, cd,
 pipes, ;, &&, find -delete, or xargs. Never delete while a target-controlled
-process may still be running. Never delete artifacts/, shared run files, target
+process may still be running. Never delete a file on your promotion allowlist,
+any file your result cites, or anything a check you still plan to run depends
+on. Never delete artifacts/, shared run files, target
 source, or anything outside your scratch directory. If a deletion fails, stop
 deleting and report it.
 ```
