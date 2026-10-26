@@ -56,6 +56,7 @@ In full audit mode, resolve these values before reconnaissance:
 The parent creates and is the only writer of shared run files:
 
 - `run-metadata.json`
+- `dispatch-plan.json`
 - `architecture.md`
 - `coverage-ledger.json`
 - `findings.json`
@@ -83,7 +84,11 @@ Before execution, the parent opens and retains trusted, non-inheritable director
 
 For a reproduced check, record the command, exact test input, sandbox limits, and only the allowlisted environment variable names plus safe non-secret values needed to reproduce it. Never capture or copy the ambient environment, inherited variables, credential values, authentication state, or unrelated host paths. Launch from an empty environment rather than trying to redact one after execution.
 
-Before delegation, the parent writes `run-metadata.json` with at least `run_id`, `repo`, `target`, `source_ref`, `profile`, `scope_paths`, `budget` (null if unset), `execution_policy: "sandboxed-source-and-local-only"`, selected companion files, prior-run paths, shared-file owners, and `run_status: "in_progress"`. Update metadata only when those facts change; candidate state belongs in the coverage ledger and `findings.json`.
+Before delegation, the parent writes `run-metadata.json` with at least `run_id`, `repo`, `target`, `source_ref`, `profile`, `scope_paths`, `budget` (null if unset), `execution_policy: "sandboxed-source-and-local-only"`, selected companion files, prior-run paths, shared-file owners, the unattended-run fields defined in [UNATTENDED.md](UNATTENDED.md), and `run_status: "in_progress"`. Update metadata only when those facts change; candidate state belongs in the coverage ledger and `findings.json`.
+
+### Unattended and long-running runs
+
+Every full audit follows [UNATTENDED.md](UNATTENDED.md). Settle all user decisions during setup and ask nothing after the first agent launches. Dispatch delegated agents in batches of at most `max_concurrent_agents` (default 5) without changing any prompt or assignment. Treat agents that end without a result because of a usage limit, timeout, or cancellation as interruptions, not failures. Resume from the run files. Schedule an hourly resume check when the harness supports scheduled prompts. Clean finished agents' scratch only with the simple commands that file defines.
 
 ## Full audit planning
 
@@ -118,7 +123,7 @@ Profiles change breadth and redundancy, never the evidence bar. Do not scale awa
 
 #### Cost budget
 
-The ledger makes spend countable: one unit is roughly one hunter assignment, and one surviving candidate is one or two verifier assignments depending on profile. When the user sets a budget — or the parent proposes one for a large target — record `budget` in `run-metadata.json` as a maximum number of agent invocations across all phases.
+The ledger makes spend countable: one unit is roughly one hunter assignment, and one surviving candidate is one or two verifier assignments depending on profile. The budget caps total invocations; `max_concurrent_agents` in [UNATTENDED.md](UNATTENDED.md) caps only how many run at once and never reduces coverage. Interrupted invocations, as defined there, are counted and reported separately and do not consume the budget. When the user sets a budget — or the parent proposes one for a large target — record `budget` in `run-metadata.json` as a maximum number of agent invocations across all phases.
 
 Apply the strict budget gate before launching any reconnaissance agent. Reserve the four baseline reconnaissance calls, one final post-wave critic for `quick` or one post-wave plus one distinct final-clean critic for `standard`/`deep`, and at least one verifier call. Add focused reconnaissance only after repeating this gate for each extra call. If the requested budget cannot fund that minimum, launch no agent: ask for a larger budget, narrower scope, or different profile. If the request remains unchanged, set `run_status: "incomplete"` with `incomplete_reason: "budget_cannot_fund_reconnaissance_and_reserves"` and report that no audit pass ran.
 
@@ -176,7 +181,7 @@ In full audit mode, follow all six phases in order:
 5. **Independent record verification** — use fresh agents to verify final source claims and reconcile corrections or state changes.
 6. **Target-neutral report** — derive `REPORT.md`, `FINDINGS-DETAIL.md`, and `NEEDS-VALIDATION.md` from the final records, with no live-probe instructions.
 
-Do not end the run before one of exactly two terminal states: (a) all Phase 6 artifacts are written and both validators pass, or (b) `run_status: "incomplete"` is recorded with its exact reason and the gap is disclosed in the report. Never stop mid-phase.
+Do not end the run before one of exactly two terminal states: (a) all Phase 6 artifacts are written and both validators pass, or (b) `run_status: "incomplete"` is recorded with its exact reason and the gap is disclosed in the report. Never stop mid-phase by choice. When the harness stops the run, through a usage limit, a session end, or a timeout, resume it from the run files as [UNATTENDED.md](UNATTENDED.md) defines. At either terminal state, delete the scheduled resume check.
 
 ## Anti-patterns
 

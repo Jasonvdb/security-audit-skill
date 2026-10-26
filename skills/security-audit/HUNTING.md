@@ -6,6 +6,8 @@ The parent assigns `planned` ledger units to `general` agents. Use enough focuse
 
 When a budget or profile caps hunter count, assign units in priority order and record the ordering rationale in the ledger. Rank by: (1) unauthenticated or lowest-trust entry surfaces before authenticated ones; (2) boundaries protecting the most valuable resources (credentials, cross-tenant data, code execution, release authority); (3) prior-run gaps, revalidation targets, and changed source before same-source re-passes; (4) units whose class historically yields confirmed findings for this target type over speculative ones. Ties break lexicographically by `coverage_id` so runs stay deterministic.
 
+A wave runs as consecutive batches of at most `max_concurrent_agents` hunters, as [UNATTENDED.md](UNATTENDED.md) defines. The parent fixes the wave's full assignment list and every prompt before the first batch, so later batches never see earlier batches' results. The post-wave critic runs only after every batch has finished. Batching changes when a hunter runs, never what it is assigned or told.
+
 Before launch, the parent changes assigned units to `in_progress`, sets a canonical lowercase `agent_id`, and creates that agent's `scratch/` and parent-owned `artifacts/`. Hunters read source and parent-provided context, write only to their unique `scratch/`, and return one structured result through the Task tool. They never write retained artifacts or edit target source, `architecture.md`, `coverage-ledger.json`, `findings.json`, or another agent's files.
 
 ## Required hunter prompt
@@ -20,7 +22,7 @@ Every hunter prompt contains these parts in this order:
 6. The core hunting method below, followed by the promotion procedure block.
 7. The core validation rules below.
 8. Carried same-source prior confirmed exclusions, each limited to fingerprint, title, and root cause, plus peer-owned current coverage IDs that this hunter must not duplicate.
-9. The unique scratch/artifact paths, safe agent ID, predeclared promotion allowlist and byte limits, and the structured-result contract, including the Structured hunter result block below and the `confirmed` and `needs_validation` branches of `report-schema.json` copied verbatim.
+9. The unique scratch/artifact paths, safe agent ID, predeclared promotion allowlist and byte limits, the Scratch cleanup rule block from [UNATTENDED.md](UNATTENDED.md) copied verbatim, and the structured-result contract, including the Structured hunter result block below and the `confirmed` and `needs_validation` branches of `report-schema.json` copied verbatim.
 
 A prompt may select several companion blocks when the same path crosses several domains. Keep their constraints together. Scope is the hunter's coverage obligation, not permission to duplicate excluded work. If an unexpected different boundary appears, return it under `uncovered` so the parent creates a stable ledger unit and assigns it in the next wave.
 

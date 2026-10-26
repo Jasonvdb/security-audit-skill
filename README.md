@@ -40,11 +40,14 @@ Multiple runs against the same repo are additive. The skill uses prior ledgers a
 | `DATA-ISOLATION-AND-LIFECYCLE.md` | Tenant isolation, cache, search, export, backup, migration, deletion, and restore hunting classes |
 | `DESKTOP-MOBILE-AND-LOCAL-IPC.md` | Native app, deep-link, webview, exported-component, helper, daemon, and local-IPC hunting classes |
 | `VALIDATION-AND-REPORTING.md` | Phases 3–6 candidate validation, structured output, record verification, and reporting |
+| `UNATTENDED.md` | Setup decisions, concurrent-agent batches, interruptions, resuming from run files, scheduled resume checks, and cleanup for long or unattended runs |
 | `report-schema.json` | JSON schema for all three `findings.json` verdicts |
 | `validate-findings.cjs` | Zero-dependency validator for `findings.json` in Phases 4 and 5 |
 | `validate-findings.test.cjs` | Findings-validator tests and producer-compatible fixture checks |
 | `validate-coverage-ledger.cjs` | Zero-dependency validator for `coverage-ledger.json` in Phases 1–5 |
 | `validate-coverage-ledger.test.cjs` | Coverage-ledger validator tests |
+| `cleanup-agent-scratch.cjs` | Zero-dependency, symlink-refusing cleanup of one finished agent's scratch directory |
+| `cleanup-agent-scratch.test.cjs` | Scratch-cleanup tests |
 
 ## Installation
 
@@ -83,10 +86,14 @@ do a security review, output to ~/audits/my-project
 
 The skill activates automatically when the request matches its trigger (security audit, find vulnerabilities, pen-test the code, etc.). A direct codebase audit or pen-test request uses full audit mode. Security questions and focused vulnerability work use guidance mode unless you request report artifacts. In full audit mode, an unspecified output directory defaults to `~/security-audit-skill/<repo-name>/run-<N>`. The workflow writes inside the target repository only when you explicitly select a directory that version control ignores.
 
+### Long and unattended runs
+
+A full audit settles all of its questions before the first agent launches, then runs without asking. It dispatches agents in batches of at most five at a time (`max_concurrent_agents`), so a large wave doesn't use up a harness usage window in minutes. Coverage stays the same; the run takes longer. When a usage limit or session end interrupts the run, it resumes from the files in the output directory. If the harness supports scheduled prompts, the run schedules an hourly resume check and deletes it when the audit finishes. See [UNATTENDED.md](skills/security-audit/UNATTENDED.md), including the operator notes for Kimi Code and Claude Code.
+
 ## Requirements
 
 - A coding agent with a model that supports tool use and parallel sub-agents
-- Node.js for the zero-dependency findings and coverage-ledger validators
+- Node.js for the zero-dependency findings and coverage-ledger validators and the scratch-cleanup script
 - An OS-enforced sandbox for target-controlled builds, tests, processes, browsers, emulators, fuzzers, and fixtures. It must disable external networking, use a sanitized allowlisted environment, enforce resource limits, and allow writes only to assigned scratch paths. Without these controls, the workflow keeps the lead as `needs_validation` instead of executing target code.
 
 ## Design principles
