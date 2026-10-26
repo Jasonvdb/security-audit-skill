@@ -14,10 +14,12 @@ Add these fields to `run-metadata.json`:
 - `resume_schedule_id`: the harness ID of the scheduled resume check, or `null` when none exists.
 - `agent_handles`: a map from each canonical `agent_id` to the harness's own handle for that agent, recorded at launch and used to resume an interrupted agent.
 - `interrupted_invocations`: a count of agent invocations that ended without a result. Initialize it to `0`.
+- `session_window_seconds`: optional wall-clock pacing value supplied by the user or harness, separate from `budget`. It never limits total invocations or coverage.
+- `resume_after`: optional timestamp or resume token for the next usage window. It is pacing metadata only and has no effect on assignments or verdicts.
 
 ## Concurrent-agent cap
 
-`budget` limits how many agents a run uses in total. `max_concurrent_agents` limits how many run at the same time. The cap spreads the same work over more wall-clock time: it never defers, merges, or drops a unit, and it never changes a prompt.
+Only an explicit user-set `budget` limits how many agents a run uses in total; the default has no such limit. `max_concurrent_agents` limits how many run at the same time. The cap spreads the same work over more wall-clock time: it never defers, merges, or drops a unit, and it never changes a prompt.
 
 The parent dispatches every delegated agent in every phase, including reconnaissance agents, hunters, critics, and Phase 3 and Phase 5 verifiers, as batches of at most `max_concurrent_agents`:
 
@@ -30,6 +32,14 @@ The parent dispatches every delegated agent in every phase, including reconnaiss
 A batch is a checkpoint. When a usage limit interrupts the run, at most one batch of work is lost, and the run files show exactly where to resume.
 
 `dispatch-plan.json` holds an array of entries, each with `phase`, `wave` (or `null` outside hunting), `batch`, `agent_id`, `role`, the `coverage_ids` or `fingerprint` it owns, and `state` (`queued`, `launched`, `done`, or `interrupted`). It is parent-owned bookkeeping like `run-metadata.json`; agents never read or write it.
+
+## Session windows suspend, never reduce
+
+A five-hour session, wall-clock deadline, usage-window reset, or large candidate count suspends work; it is not a reason to stop hunting, defer units, reduce validation, or accept a partial final result. Total elapsed time and total invocations may exceed one window without changing the end result.
+
+When a window is about to close, finish the current batch checkpoint if possible and end the turn with `run_status: "in_progress"`. Keep the frozen dispatch list, prompts, assignments, and candidate order unchanged for the next window. If the harness interrupts the batch instead, recover it only under [Interruptions](#interruptions). Do not invent an invocation cap or mark time-driven deferrals.
+
+Resume at the next window from the first unfinished batch. Continue every hunter wave, critic, and Phase 3/5 verifier required by the profile. Only an explicit user-set strict invocation budget can make the run `incomplete` for budget reasons; a session window cannot.
 
 ## Interruptions
 

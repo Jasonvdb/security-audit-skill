@@ -9,10 +9,12 @@
 >
 > - runs at most five agents at a time, with the same coverage as upstream; runs just take longer
 > - resumes from the run files after a usage limit or session end, and schedules an hourly resume check when the harness supports it
+> - never stops or defers work because of a five-hour session, usage-window reset, or large candidate count
 > - asks all its questions at setup, then runs without asking
 > - cleans up its scratch with simple commands that approval guards allow
+> - rejects malformed hunter evidence before consolidation instead of repairing it
 >
-> Upstream's audit workflow and evidence rules are unchanged. To install this fork instead of upstream:
+> Upstream's audit workflow and evidence rules retain their full depth. Session windows change only pacing and resumption, never the end result. To install this fork instead of upstream:
 >
 > ```bash
 > npx skills add https://github.com/Jasonvdb/security-audit-skill --skill security-audit --global
@@ -64,6 +66,8 @@ Multiple runs against the same repo are additive. The skill uses prior ledgers a
 | `validate-findings.test.cjs` | Findings-validator tests and producer-compatible fixture checks |
 | `validate-coverage-ledger.cjs` | Zero-dependency validator for `coverage-ledger.json` in Phases 1–5 |
 | `validate-coverage-ledger.test.cjs` | Coverage-ledger validator tests |
+| `validate-hunter-result.cjs` | Zero-dependency pre-consolidation validator for exact hunter assignments, evidence ownership, and candidate shape |
+| `validate-hunter-result.test.cjs` | Hunter-result validator and no-normalization regression tests |
 | `cleanup-agent-scratch.cjs` | Zero-dependency, symlink-refusing cleanup of one finished agent's scratch directory |
 | `cleanup-agent-scratch.test.cjs` | Scratch-cleanup tests |
 
@@ -106,12 +110,21 @@ The skill activates automatically when the request matches its trigger (security
 
 ### Long and unattended runs
 
-A full audit settles all of its questions before the first agent launches, then runs without asking. It dispatches agents in batches of at most five at a time (`max_concurrent_agents`), so a large wave doesn't use up a harness usage window in minutes. Coverage stays the same; the run takes longer. When a usage limit or session end interrupts the run, it resumes from the files in the output directory. If the harness supports scheduled prompts, the run schedules an hourly resume check and deletes it when the audit finishes. See [UNATTENDED.md](skills/security-audit/UNATTENDED.md), including the operator notes for Kimi Code and Claude Code.
+A full audit settles all of its questions before the first agent launches, then runs without asking. It dispatches agents in batches of at most five at a time (`max_concurrent_agents`), so a large wave doesn't use up a harness usage window in minutes. Coverage and independent verification stay the same; the run takes longer. A five-hour session, usage-window reset, or large candidate count suspends rather than reduces the audit. Only an explicit user-set strict invocation budget can make the result incomplete for budget reasons. When a usage limit or session end interrupts the run, it resumes from the files in the output directory with the same assignments and prompts. If the harness supports scheduled prompts, the run schedules an hourly resume check and deletes it when the audit finishes. See [UNATTENDED.md](skills/security-audit/UNATTENDED.md), including the operator notes for Kimi Code and Claude Code.
+
+Before consolidating each hunter result, the parent runs:
+
+```sh
+node skills/security-audit/validate-hunter-result.cjs \
+  <output-dir>/coverage-ledger.json <agent-id> <result.json>
+```
+
+Malformed results are rejected and reassigned without parent-side repair.
 
 ## Requirements
 
 - A coding agent with a model that supports tool use and parallel sub-agents
-- Node.js for the zero-dependency findings and coverage-ledger validators and the scratch-cleanup script
+- Node.js for the zero-dependency findings, coverage-ledger, and hunter-result validators and the scratch-cleanup script
 - An OS-enforced sandbox for target-controlled builds, tests, processes, browsers, emulators, fuzzers, and fixtures. It must disable external networking, use a sanitized allowlisted environment, enforce resource limits, and allow writes only to assigned scratch paths. Without these controls, the workflow keeps the lead as `needs_validation` instead of executing target code.
 
 ## Design principles
